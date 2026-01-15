@@ -23,23 +23,24 @@
 #define HA_STATUS_NOOD     10
 
 // ---------------------- State machine ----------------------
-typedef enum { 
-    S_IDLE, 
-    S_STOFZUIGEN, 
-    S_OPLADEN, 
-    S_NOOD, 
-    S_ERROR 
+typedef enum {
+    S_IDLE,
+    S_STOFZUIGEN,
+    S_OPLADEN,
+    S_NOOD,
+    S_ERROR
 } states;
 
-typedef enum { 
-    E_NONE, 
-    E_START, 
-    E_STOP, 
-    E_START_OPLADEN, 
-    E_NOOD, 
-    E_RESET 
+typedef enum {
+    E_NONE,
+    E_START,
+    E_STOP,
+    E_START_OPLADEN,
+    E_NOOD,
+    E_RESET
 } events;
 
+// ---------------------- Globals ----------------------
 states currentState = S_IDLE;
 states nextState    = S_IDLE;
 events currentEvent = E_NONE;
@@ -57,26 +58,39 @@ uint8_t readHomeStatus(void);
 int main(void)
 {
     SYSTEM_Initialize();
-    printf("Master gestart (alleen Home Assist)\n");
+    printf("MASTER gestart (alleen Home Assist, addr 0x04)\n");
 
     while(1)
     {
-        // ----------- Lees Home Assist status -----------
+        // ------------------- Status lezen -------------------
         homeStatus = readHomeStatus();
+        printf("[MASTER] Ontvangen STATUS = %u\n", homeStatus);
 
-        // ----------- Events bepalen -----------
-        if(homeStatus == HA_STATUS_NOOD)
+        // ------------------- Events bepalen -----------------
+        if(homeStatus == HA_STATUS_NOOD) {
+            printf("[EVENT] NOOD\n");
             setEvent(E_NOOD);
-        else if(homeStatus == HA_STATUS_START)
+        }
+        else if(homeStatus == HA_STATUS_START) {
+            printf("[EVENT] START\n");
             setEvent(E_START);
-        else if(homeStatus == HA_STATUS_STOP)
+        }
+        else if(homeStatus == HA_STATUS_STOP) {
+            printf("[EVENT] STOP\n");
             setEvent(E_STOP);
-        else if(homeStatus == HA_STATUS_OPLADEN)
+        }
+        else if(homeStatus == HA_STATUS_OPLADEN) {
+            printf("[EVENT] START OPLADEN\n");
             setEvent(E_START_OPLADEN);
-        else if(homeStatus == HA_STATUS_RESET)
+        }
+        else if(homeStatus == HA_STATUS_RESET) {
+            printf("[EVENT] RESET\n");
             setEvent(E_RESET);
+        }
 
-        // ----------- State machine -----------
+        // ------------------- State machine ------------------
+        nextState = currentState;
+
         switch(currentState)
         {
             case S_IDLE:
@@ -126,25 +140,41 @@ int main(void)
                 break;
         }
 
+        if(nextState != currentState) {
+            printf("[STATE] %d -> %d\n", currentState, nextState);
+        }
+
         currentState = nextState;
         resetEvent();
+
         _delay_ms(200);
     }
 }
 
 // ---------------------- Event helpers ----------------------
-void setEvent(events e) { currentEvent = e; }
-void resetEvent(void)   { currentEvent = E_NONE; }
+void setEvent(events e)
+{
+    currentEvent = e;
+}
 
-// ---------------------- I2C functies (simpel) ----------------------
+void resetEvent(void)
+{
+    currentEvent = E_NONE;
+}
+
+// ---------------------- I2C functies ----------------------
 void sendHomeCommand(uint8_t cmd)
 {
     uint16_t timeout = I2C_TIMEOUT;
+
+    printf("[I2C] VERSTUURD -> addr 0x%02X : CMD = %u\n", HOME_ADDR, cmd);
+
     TWI0_Write(HOME_ADDR, &cmd, 1);
     while(TWI0_IsBusy() && timeout--);
 
-    if(timeout == 0)
-        printf("I2C timeout bij sturen cmd=%u\n", cmd);
+    if(timeout == 0) {
+        printf("[I2C] WRITE TIMEOUT (cmd=%u)\n", cmd);
+    }
 }
 
 uint8_t readHomeStatus(void)
@@ -152,13 +182,18 @@ uint8_t readHomeStatus(void)
     uint8_t value = 0;
     uint16_t timeout = I2C_TIMEOUT;
 
+    printf("[I2C] LEZEN <- addr 0x%02X\n", HOME_ADDR);
+
     TWI0_Read(HOME_ADDR, &value, 1);
     while(TWI0_IsBusy() && timeout--);
 
     if(timeout == 0) {
-        printf("I2C timeout bij lezen status\n");
+        printf("[I2C] READ TIMEOUT\n");
         return 0xFF;
     }
+
+    printf("[I2C] ONTVANGEN <- addr 0x%02X : STATUS = %u\n",
+           HOME_ADDR, value);
 
     return value;
 }
