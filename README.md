@@ -180,18 +180,28 @@ void sendHomeCommand(uint8_t cmd)
 uint8_t readHomeStatus(void)
 {
     uint8_t value = 0;
+    uint8_t dummy = 0x00;
     uint16_t timeout = I2C_TIMEOUT;
 
     printf("[I2C] LEZEN <- addr 0x%02X\n", HOME_ADDR);
-
-    TWI0_Read(HOME_ADDR, &value, 1);
+    TWI0_Write(HOME_ADDR, &dummy, 1);
     while(TWI0_IsBusy() && timeout--);
 
     if(timeout == 0) {
         printf("[I2C] READ TIMEOUT\n");
         return 0xFF;
     }
+    
+    timeout = I2C_TIMEOUT;
+    TWI0_Read(HOME_ADDR, &value, 1);
+    
+    while(TWI0_IsBusy() && timeout--);
 
+    if(timeout == 0) {
+        printf("[I2C] READ TIMEOUT\n");
+        return 0xFF;
+    }
+    
     printf("[I2C] ONTVANGEN <- addr 0x%02X : STATUS = %u\n",
            HOME_ADDR, value);
 
